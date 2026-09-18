@@ -149,6 +149,7 @@
   <div class="nav-tabs">
     <button id="tabList" class="active" onclick="switchView('list')">ابحث عن أستاذ</button>
     <button id="tabTime" onclick="switchView('time')">أدر وقتك</button>
+    <button id="tabLessons" onclick="switchView('lessons')">🔒 الدروس المسجلة</button>
     <button id="tabAdmin" onclick="switchView('admin')" style="display:none;">لوحة التحكم</button>
   </div>
 </header>
@@ -202,6 +203,36 @@
         <a id="scheduleDownloadLink" href="" download="جدول-دروسي.jpg" class="btn" style="display:none;margin-top:12px;text-decoration:none;">⬇️ تحميل الجدول</a>
       </div>
       <div id="scheduleUsageText" class="form-sub" style="white-space:pre-line;margin-top:14px;"></div>
+    </div>
+  </div>
+
+  <!-- ===== الدروس المسجلة (عام - مقفل) ===== -->
+  <div id="lessonsView" class="view">
+    <div class="card-block" style="text-align:center;">
+      <div style="font-size:40px;">🔒</div>
+      <div class="form-title" style="margin-top:8px;">الدروس المسجلة</div>
+      <div class="form-sub">دروس شعب البكالوريا مسجلة بجودة عالية مع نخبة من الأساتذة — هذه الميزة ستُضاف قريبًا 🚀</div>
+    </div>
+
+    <div class="card-block" id="studentAuthBox">
+      <div class="form-title">سجّل حسابك الآن لتكون جاهزًا عند الإطلاق</div>
+      <div class="form-sub">بعد إنشاء الحساب، تواصل عبر واتساب لتأكيد الدفع وتفعيل اشتراكك.</div>
+
+      <div id="studentAuthForms">
+        <div class="field"><label>البريد الإلكتروني</label><input type="email" id="stu_email"></div>
+        <div class="field"><label>كلمة السر</label><input type="password" id="stu_password"></div>
+        <div class="field"><label>رقم واتساب (اختياري)</label><input type="tel" id="stu_whatsapp" placeholder="+2224xxxxxxx"></div>
+        <button class="btn full" onclick="studentSignup()">إنشاء حساب</button>
+        <button class="btn outline full" style="margin-top:8px;" onclick="studentLogin()">لدي حساب بالفعل — دخول</button>
+        <div class="msg" id="studentAuthMsg"></div>
+      </div>
+    </div>
+
+    <div class="card-block" id="studentStatusBox" style="display:none;">
+      <div class="form-title">حالة اشتراكك</div>
+      <div id="studentStatusText" class="form-sub"></div>
+      <a class="btn full" style="display:block;text-align:center;text-decoration:none;margin-top:10px;" target="_blank" href="https://wa.me/22236251115">💬 تواصل معنا عبر واتساب لتأكيد الدفع</a>
+      <button class="btn outline full" style="margin-top:8px;" onclick="studentLogout()">تسجيل الخروج</button>
     </div>
   </div>
 
@@ -332,6 +363,42 @@
       <div class="msg" id="planMsg"></div>
     </div>
 
+    <div class="card-block">
+      <div class="form-title">طلبات اشتراك الدروس المسجلة</div>
+      <div class="form-sub">وافق على الطالب فقط بعد تأكيد الدفع يدويًا عبر واتساب.</div>
+      <div id="studentRequestsList"></div>
+    </div>
+
+    <div class="card-block">
+      <div class="form-title">إضافة درس مسجل</div>
+      <div class="form-sub">الرفع المباشر للفيديو سيُفعّل لاحقًا — الآن الصق رابط الفيديو مؤقتًا (مثلًا رابط يوتيوب).</div>
+
+      <div class="field"><label>عنوان الدرس</label><input type="text" id="lsn_title" placeholder="مثال: مراجعة الدوال - الحصة الأولى"></div>
+      <div class="field"><label>رابط الفيديو (مؤقتًا)</label><input type="text" id="lsn_video" placeholder="https://..."></div>
+
+      <div class="two-col">
+        <div class="field"><label>المادة</label><select id="lsn_subject"><option value="">اختر مادة</option></select></div>
+        <div class="field"><label>المستوى</label><select id="lsn_level" onchange="toggleLessonBranch()"><option value="">اختر مستوى</option></select></div>
+      </div>
+
+      <div class="field" id="lsn_branch_wrap" style="display:none;">
+        <label>شعبة البكالوريا</label>
+        <select id="lsn_branch"><option value="">اختر شعبة</option></select>
+      </div>
+
+      <div class="field"><label>الأستاذ</label><select id="lsn_teacher"><option value="">اختر أستاذ</option></select></div>
+
+      <div class="field">
+        <label>ملف مرفق (ملخص الدرس + أسئلة وأجوبة)</label>
+        <input type="file" id="lsn_file" accept=".pdf,.doc,.docx,image/*">
+      </div>
+
+      <button class="btn full" onclick="addRecordedLesson()">إضافة الدرس</button>
+      <div class="msg" id="lessonMsg"></div>
+
+      <div id="recordedLessonsList" style="margin-top:16px;"></div>
+    </div>
+
     <button class="btn outline full" onclick="adminLogout()">تسجيل الخروج</button>
   </div>
 
@@ -348,6 +415,7 @@
 <script>
 const SUPABASE_URL = "https://ooyyxxlfbiswkeedptwp.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_LiYs_p3BSIX0z_GvNTUKzw_XdgVrVUc";
+const ADMIN_EMAIL = "medleminsidatywww@gmail.com";
 const LEVELS = [
   "شهادة ختم الدروس الابتدائية",
   "شهادة ختم الدروس الإعدادية",
@@ -367,18 +435,18 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const CLOUDINARY_CLOUD_NAME = "doybsbnre";
 const CLOUDINARY_UPLOAD_PRESET = "darosy_uploads";
 
-async function uploadToCloudinary(file) {
+async function uploadToCloudinary(file, resourceType = 'image') {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
 
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`, {
     method: 'POST',
     body: formData
   });
   const data = await res.json();
   if (!res.ok || !data.secure_url) {
-    throw new Error(data.error?.message || 'تعذر رفع الصورة');
+    throw new Error(data.error?.message || 'تعذر رفع الملف');
   }
   return data.secure_url;
 }
@@ -434,7 +502,7 @@ let allCities = [];
 let allAreas = [];
 
 function switchView(view) {
-  ['list','login','admin','time'].forEach(v => {
+  ['list','login','admin','time','lessons'].forEach(v => {
     document.getElementById(v + 'View').classList.toggle('active', v === view);
     const tab = document.getElementById('tab' + v.charAt(0).toUpperCase() + v.slice(1));
     if (tab) tab.classList.toggle('active', v === view);
@@ -458,6 +526,7 @@ async function loadSubjects() {
   allSubjects = data || [];
   fillSelect('filterSubject', allSubjects.map(s => s.name), 'كل المواد');
   fillCheckList('f_subject_list', allSubjects.map(s => s.name), 'fsub');
+  fillSelect('lsn_subject', allSubjects.map(s => s.name), 'اختر مادة');
   renderChips('subjectChips', allSubjects, 'Subject');
 }
 
@@ -492,6 +561,10 @@ async function loadTeachers() {
   fillSelect('filterBranch', BRANCHES, 'كل الشعب (بكالوريا)');
   fillCheckList('f_level_list', LEVELS, 'flvl');
   fillCheckList('f_branch_list', BRANCHES, 'fbr');
+  fillSelect('lsn_level', LEVELS, 'اختر مستوى');
+  fillSelect('lsn_branch', BRANCHES, 'اختر شعبة');
+  const teacherNames = [...new Set(allTeachers.map(t => t.name).filter(Boolean))].sort();
+  fillSelect('lsn_teacher', teacherNames, 'اختر أستاذ');
   bindBranchToggle();
   applyFilters();
   statusEl.style.display = 'none';
@@ -694,7 +767,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   btn.disabled = true;
   btn.textContent = 'جارٍ الدخول...';
 
-  const { error } = await sb.auth.signInWithPassword({
+  const { data, error } = await sb.auth.signInWithPassword({
     email: document.getElementById('l_email').value.trim(),
     password: document.getElementById('l_password').value
   });
@@ -708,6 +781,14 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     console.error(error);
     return;
   }
+
+  if (data.user.email !== ADMIN_EMAIL) {
+    await sb.auth.signOut();
+    msg.className = 'msg error';
+    msg.textContent = 'هذا الحساب ليس حساب مشرف.';
+    return;
+  }
+
   onAdminLogin();
 });
 
@@ -718,6 +799,8 @@ function onAdminLogin() {
   switchView('admin');
   render(allTeachers.filter(t => matchesCurrentFilters(t)));
   applyFilters();
+  loadStudentRequests();
+  loadRecordedLessonsAdmin();
 }
 
 async function adminLogout() {
@@ -734,7 +817,12 @@ function matchesCurrentFilters() { return true; }
 
 async function checkExistingSession() {
   const { data } = await sb.auth.getSession();
-  if (data.session) onAdminLogin();
+  if (!data.session) return;
+  if (data.session.user.email === ADMIN_EMAIL) {
+    onAdminLogin();
+  } else {
+    onStudentLogin(data.session.user);
+  }
 }
 
 // ===================== إضافة أستاذ =====================
@@ -1041,6 +1129,212 @@ async function savePlan() {
   msg.className = 'msg success';
   msg.textContent = 'تم الحفظ.';
   loadTimePlan();
+}
+
+// ===================== حسابات الطلاب (الدروس المسجلة) =====================
+async function studentSignup() {
+  const msg = document.getElementById('studentAuthMsg');
+  msg.className = 'msg';
+  const email = document.getElementById('stu_email').value.trim();
+  const password = document.getElementById('stu_password').value;
+
+  if (!email || !password) {
+    msg.className = 'msg error';
+    msg.textContent = 'أدخل البريد الإلكتروني وكلمة السر.';
+    return;
+  }
+
+  const { data, error } = await sb.auth.signUp({ email, password });
+  if (error) {
+    msg.className = 'msg error';
+    msg.textContent = 'تعذر إنشاء الحساب: ' + error.message;
+    return;
+  }
+
+  if (data.session) {
+    await ensureStudentProfile(data.user);
+    onStudentLogin(data.user);
+  } else {
+    msg.className = 'msg success';
+    msg.textContent = 'تم إنشاء الحساب. سجّل الدخول الآن من الزر أدناه.';
+  }
+}
+
+async function studentLogin() {
+  const msg = document.getElementById('studentAuthMsg');
+  msg.className = 'msg';
+  const email = document.getElementById('stu_email').value.trim();
+  const password = document.getElementById('stu_password').value;
+
+  if (!email || !password) {
+    msg.className = 'msg error';
+    msg.textContent = 'أدخل البريد الإلكتروني وكلمة السر.';
+    return;
+  }
+
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) {
+    msg.className = 'msg error';
+    msg.textContent = 'فشل تسجيل الدخول: ' + error.message;
+    return;
+  }
+
+  if (data.user.email === ADMIN_EMAIL) {
+    await sb.auth.signOut();
+    msg.className = 'msg error';
+    msg.textContent = 'هذا حساب مشرف — استخدم زر ⭐ أسفل الصفحة بدل هذا النموذج.';
+    return;
+  }
+
+  await ensureStudentProfile(data.user);
+  onStudentLogin(data.user);
+}
+
+async function ensureStudentProfile(user) {
+  const whatsapp = document.getElementById('stu_whatsapp').value.trim();
+  const { data: existing } = await sb.from('student_profiles').select('id').eq('id', user.id).maybeSingle();
+  if (!existing) {
+    await sb.from('student_profiles').insert([{ id: user.id, email: user.email, whatsapp, status: 'pending' }]);
+  }
+}
+
+function onStudentLogin(user) {
+  document.getElementById('studentAuthBox').style.display = 'none';
+  document.getElementById('studentStatusBox').style.display = 'block';
+  loadMyStudentStatus(user.id);
+}
+
+async function loadMyStudentStatus(uid) {
+  const { data } = await sb.from('student_profiles').select('status').eq('id', uid).maybeSingle();
+  const statusEl = document.getElementById('studentStatusText');
+  const status = data ? data.status : 'pending';
+  if (status === 'approved') {
+    statusEl.textContent = 'اشتراكك مُفعّل ✅ — الدروس المسجلة ستظهر هنا فور إطلاقها.';
+  } else if (status === 'rejected') {
+    statusEl.textContent = 'لم يتم تفعيل اشتراكك بعد ❌ — تواصل معنا للتأكد من الدفع.';
+  } else {
+    statusEl.textContent = 'حسابك قيد المراجعة ⏳ — تواصل معنا عبر واتساب لتأكيد الدفع.';
+  }
+}
+
+async function studentLogout() {
+  await sb.auth.signOut();
+  document.getElementById('studentAuthBox').style.display = 'block';
+  document.getElementById('studentStatusBox').style.display = 'none';
+  document.getElementById('stu_email').value = '';
+  document.getElementById('stu_password').value = '';
+}
+
+// ===================== لوحة المشرف: طلبات الاشتراك =====================
+async function loadStudentRequests() {
+  const { data, error } = await sb.from('student_profiles').select('*').order('created_at', { ascending: false });
+  const el = document.getElementById('studentRequestsList');
+  if (!el) return;
+  if (error) { el.innerHTML = 'تعذر التحميل: ' + error.message; return; }
+  if (!data.length) {
+    el.innerHTML = '<span style="color:var(--muted);font-size:13px;">لا يوجد طلبات بعد</span>';
+    return;
+  }
+  el.innerHTML = data.map(s => `
+    <div class="row" style="padding:10px 4px;">
+      <div class="row-main" style="font-size:13px;">
+        <strong>${escapeHtml(s.email || '')}</strong>${s.whatsapp ? ' — ' + escapeHtml(s.whatsapp) : ''}
+        <div style="color:var(--muted);margin-top:3px;">الحالة: ${studentStatusLabel(s.status)}</div>
+      </div>
+      <div class="row-actions">
+        <button class="icon-btn" style="background:#2e8b57;color:white;" title="موافقة" onclick="setStudentStatus('${s.id}','approved')">✅</button>
+        <button class="icon-btn del-btn" title="رفض" onclick="setStudentStatus('${s.id}','rejected')">❌</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function studentStatusLabel(s) {
+  if (s === 'approved') return 'مُفعّل ✅';
+  if (s === 'rejected') return 'مرفوض ❌';
+  return 'قيد المراجعة ⏳';
+}
+
+async function setStudentStatus(id, status) {
+  const { error } = await sb.from('student_profiles').update({ status }).eq('id', id);
+  if (error) { await uiAlert('تعذر التحديث: ' + error.message); return; }
+  loadStudentRequests();
+}
+
+// ===================== لوحة المشرف: الدروس المسجلة =====================
+function toggleLessonBranch() {
+  const level = document.getElementById('lsn_level').value;
+  document.getElementById('lsn_branch_wrap').style.display = level === BAC_LEVEL ? 'block' : 'none';
+}
+
+async function addRecordedLesson() {
+  const msg = document.getElementById('lessonMsg');
+  msg.className = 'msg';
+
+  const title = document.getElementById('lsn_title').value.trim();
+  const video_url = document.getElementById('lsn_video').value.trim();
+  const subject = document.getElementById('lsn_subject').value;
+  const level = document.getElementById('lsn_level').value;
+  const branch = level === BAC_LEVEL ? document.getElementById('lsn_branch').value : null;
+  const teacher_name = document.getElementById('lsn_teacher').value;
+
+  if (!title) {
+    msg.className = 'msg error';
+    msg.textContent = 'أدخل عنوان الدرس.';
+    return;
+  }
+
+  let file_url = null;
+  const fileInput = document.getElementById('lsn_file');
+  if (fileInput.files && fileInput.files[0]) {
+    try {
+      file_url = await uploadToCloudinary(fileInput.files[0], 'auto');
+    } catch (uploadError) {
+      msg.className = 'msg error';
+      msg.textContent = 'تعذر رفع الملف: ' + uploadError.message;
+      return;
+    }
+  }
+
+  const { error } = await sb.from('recorded_lessons').insert([{ title, video_url, subject, level, branch, teacher_name, file_url }]);
+  if (error) {
+    msg.className = 'msg error';
+    msg.textContent = 'تعذر الإضافة: ' + error.message;
+    return;
+  }
+
+  msg.className = 'msg success';
+  msg.textContent = 'تمت إضافة الدرس.';
+  document.getElementById('lsn_title').value = '';
+  document.getElementById('lsn_video').value = '';
+  fileInput.value = '';
+  loadRecordedLessonsAdmin();
+}
+
+async function loadRecordedLessonsAdmin() {
+  const { data, error } = await sb.from('recorded_lessons').select('*').order('created_at', { ascending: false });
+  const el = document.getElementById('recordedLessonsList');
+  if (!el) return;
+  if (error) { el.innerHTML = 'تعذر التحميل: ' + error.message; return; }
+  if (!data.length) { el.innerHTML = ''; return; }
+  el.innerHTML = data.map(l => `
+    <div class="row" style="padding:8px 4px;">
+      <div class="row-main" style="font-size:13px;">
+        <strong>${escapeHtml(l.title)}</strong>
+        <div style="color:var(--muted);margin-top:3px;">
+          ${l.subject ? escapeHtml(l.subject) : ''}${l.level ? ' — ' + escapeHtml(l.level) : ''}${l.branch ? ' (' + escapeHtml(l.branch) + ')' : ''}${l.teacher_name ? ' — ' + escapeHtml(l.teacher_name) : ''}
+        </div>
+      </div>
+      <button class="icon-btn del-btn" title="حذف" onclick="deleteRecordedLesson('${l.id}')">🗑️</button>
+    </div>
+  `).join('');
+}
+
+async function deleteRecordedLesson(id) {
+  if (!await uiConfirm('حذف هذا الدرس؟')) return;
+  const { error } = await sb.from('recorded_lessons').delete().eq('id', id);
+  if (error) { await uiAlert('تعذر الحذف: ' + error.message); return; }
+  loadRecordedLessonsAdmin();
 }
 
 ['filterSubject','filterLevel','filterBranch','filterCity','filterArea','filterStatus'].forEach(id => {

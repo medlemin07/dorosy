@@ -914,7 +914,6 @@ function render(data) {
         ${t.bio ? `<div class="row-bio">${escapeHtml(t.bio)}</div>` : ''}
       </div>
       <div class="row-actions">
-        ${wa ? `<a class="icon-btn wa-link" href="${waHref}" target="_blank" title="واتساب">${WA_ICON}</a>` : ''}
         <button class="icon-btn outline" style="background:var(--royal);color:white;" title="حجز حصة" onclick="openBookingModal('${t.id}')">📅</button>
         <button class="icon-btn outline" style="background:var(--gold);color:white;" title="قيّم الأستاذ" onclick="openRatingModal('${t.id}', '${escapeHtml(t.name).replace(/'/g, "\\'")}')">⭐</button>
         ${isAdmin ? `<button class="icon-btn outline" style="background:${inactive ? 'var(--ink)' : 'var(--muted)'};color:white;" title="${inactive ? 'تفعيل' : 'إيقاف'}" onclick="toggleTeacherStatus('${t.id}', ${inactive})">${inactive ? '▶️' : '⏸️'}</button>` : ''}

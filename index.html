@@ -350,6 +350,33 @@
 
   <div id="printArea" style="display:none;"></div>
 
+  <div id="bookingModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:1000;align-items:center;justify-content:center;padding:20px;overflow-y:auto;">
+    <div class="card-block" style="max-width:360px;width:100%;margin:20px 0;">
+      <div class="form-title" id="bookingModalTitle">حجز حصة</div>
+      <div class="form-sub">املأ بياناتك وسنؤكد الحجز معك مباشرة عبر واتساب.</div>
+
+      <div class="field"><label>اسمك</label><input type="text" id="bk_name" placeholder="الاسم الكامل"></div>
+      <div class="field"><label>رقم هاتفك</label><input type="tel" id="bk_phone" placeholder="+2224xxxxxxx"></div>
+
+      <div class="field" id="bk_subject_wrap">
+        <label>المادة</label>
+        <select id="bk_subject"></select>
+      </div>
+      <div class="field" id="bk_level_wrap">
+        <label>المستوى</label>
+        <select id="bk_level"></select>
+      </div>
+      <div class="field" id="bk_branch_wrap" style="display:none;">
+        <label>الشعبة</label>
+        <select id="bk_branch"></select>
+      </div>
+
+      <button class="btn full" onclick="submitBooking()">💬 تأكيد الحجز عبر واتساب</button>
+      <button class="btn outline full" style="margin-top:8px;" onclick="closeBookingModal()">إلغاء</button>
+      <div class="msg" id="bookingMsg"></div>
+    </div>
+  </div>
+
   <div id="ratingModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:1000;align-items:center;justify-content:center;padding:20px;">
     <div class="card-block" style="max-width:340px;width:100%;margin-bottom:0;">
       <div class="form-title" id="ratingModalTitle">تقييم الأستاذ</div>
@@ -485,6 +512,12 @@
 
       <button class="btn full" style="margin-top:14px;" onclick="savePlan()">حفظ</button>
       <div class="msg" id="planMsg"></div>
+    </div>
+
+    <div class="card-block">
+      <div class="form-title">الحصص المحجوزة</div>
+      <div class="form-sub">راسل الأستاذ لأخذ رقم الدفع، أرسله للطالب، وبعد الدفع اضغط "تأكيد".</div>
+      <div id="bookingsAdminList"></div>
     </div>
 
     <div class="card-block">
@@ -882,6 +915,7 @@ function render(data) {
       </div>
       <div class="row-actions">
         ${wa ? `<a class="icon-btn wa-link" href="${waHref}" target="_blank" title="واتساب">${WA_ICON}</a>` : ''}
+        <button class="icon-btn outline" style="background:var(--royal);color:white;" title="حجز حصة" onclick="openBookingModal('${t.id}')">📅</button>
         <button class="icon-btn outline" style="background:var(--gold);color:white;" title="قيّم الأستاذ" onclick="openRatingModal('${t.id}', '${escapeHtml(t.name).replace(/'/g, "\\'")}')">⭐</button>
         ${isAdmin ? `<button class="icon-btn outline" style="background:${inactive ? 'var(--ink)' : 'var(--muted)'};color:white;" title="${inactive ? 'تفعيل' : 'إيقاف'}" onclick="toggleTeacherStatus('${t.id}', ${inactive})">${inactive ? '▶️' : '⏸️'}</button>` : ''}
         ${isAdmin ? `<button class="icon-btn outline" style="background:var(--gold-dark);color:white;" title="تعديل" onclick="editTeacher('${t.id}')">✏️</button>` : ''}
@@ -936,6 +970,7 @@ function onAdminLogin() {
   loadStudentRequests();
   loadRecordedLessonsAdmin();
   loadRatingsAdmin();
+  loadBookingsAdmin();
 }
 
 async function adminLogout() {
@@ -1593,6 +1628,121 @@ async function deleteRating(id) {
   loadRatingsAdmin();
   loadRatings();
   applyFilters();
+}
+
+// ===================== حجز الحصص =====================
+const ADMIN_WHATSAPP = "22236251115";
+let currentBookingTeacher = null;
+
+function openBookingModal(teacherId) {
+  const t = allTeachers.find(x => x.id === teacherId);
+  if (!t) return;
+  currentBookingTeacher = t;
+
+  document.getElementById('bookingModalTitle').textContent = `حجز حصة مع ${t.name}`;
+  document.getElementById('bk_name').value = '';
+  document.getElementById('bk_phone').value = '';
+  document.getElementById('bookingMsg').className = 'msg';
+
+  const tSubjects = t.subjects && t.subjects.length ? t.subjects : (t.subject ? [t.subject] : []);
+  const tLevels = t.levels && t.levels.length ? t.levels : (t.level ? [t.level] : []);
+  const tBranches = t.branches || [];
+
+  fillPlainSelect('bk_subject', tSubjects);
+  fillPlainSelect('bk_level', tLevels);
+
+  const branchWrap = document.getElementById('bk_branch_wrap');
+  if (tBranches.length) {
+    fillPlainSelect('bk_branch', tBranches);
+    branchWrap.style.display = 'block';
+  } else {
+    branchWrap.style.display = 'none';
+  }
+
+  document.getElementById('bookingModalOverlay').style.display = 'flex';
+}
+
+function fillPlainSelect(id, values) {
+  const sel = document.getElementById(id);
+  sel.innerHTML = values.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+}
+
+function closeBookingModal() {
+  document.getElementById('bookingModalOverlay').style.display = 'none';
+}
+
+async function submitBooking() {
+  const msg = document.getElementById('bookingMsg');
+  msg.className = 'msg';
+
+  const name = document.getElementById('bk_name').value.trim();
+  const phone = document.getElementById('bk_phone').value.trim();
+  const subject = document.getElementById('bk_subject').value;
+  const level = document.getElementById('bk_level').value;
+  const branch = document.getElementById('bk_branch_wrap').style.display !== 'none'
+    ? document.getElementById('bk_branch').value : null;
+
+  if (!name || !phone) {
+    msg.className = 'msg error';
+    msg.textContent = 'أدخل اسمك ورقم هاتفك.';
+    return;
+  }
+
+  const t = currentBookingTeacher;
+  const { error } = await sb.from('bookings').insert([{
+    teacher_id: t.id, teacher_name: t.name, student_name: name, student_phone: phone,
+    subject, level, branch, status: 'pending'
+  }]);
+
+  if (error) {
+    msg.className = 'msg error';
+    msg.textContent = 'تعذر إرسال الحجز: ' + error.message;
+    return;
+  }
+
+  const waText = encodeURIComponent(
+    `السلام عليكم، أريد حجز حصة:\nالطالب: ${name}\nالهاتف: ${phone}\nالأستاذ: ${t.name}\nالمادة: ${subject}\nالمستوى: ${level}${branch ? '\nالشعبة: ' + branch : ''}`
+  );
+  window.open(`https://wa.me/${ADMIN_WHATSAPP}?text=${waText}`, '_blank');
+
+  msg.className = 'msg success';
+  msg.textContent = 'تم إرسال طلب الحجز! أكمل التأكيد عبر واتساب.';
+  setTimeout(closeBookingModal, 1200);
+}
+
+async function loadBookingsAdmin() {
+  const el = document.getElementById('bookingsAdminList');
+  if (!el) return;
+  const { data, error } = await sb.from('bookings').select('*').order('created_at', { ascending: false });
+  if (error) { el.innerHTML = 'تعذر التحميل: ' + error.message; return; }
+  if (!data.length) { el.innerHTML = '<span style="color:var(--muted);font-size:13px;">لا يوجد حجوزات بعد</span>'; return; }
+  el.innerHTML = data.map(b => `
+    <div class="row" style="padding:10px 4px;">
+      <div class="row-main" style="font-size:13px;">
+        <strong>${escapeHtml(b.student_name)}</strong> — <span class="num">${escapeHtml(b.student_phone)}</span>
+        <div style="color:var(--muted);margin-top:3px;">
+          مع ${escapeHtml(b.teacher_name)} — ${escapeHtml(b.subject || '')}${b.level ? ' — ' + escapeHtml(b.level) : ''}${b.branch ? ' (' + escapeHtml(b.branch) + ')' : ''}
+        </div>
+        <div style="margin-top:3px;">${bookingStatusLabel(b.status)}</div>
+      </div>
+      <div class="row-actions">
+        ${b.status !== 'confirmed' ? `<button class="icon-btn" style="background:#2e8b57;color:white;" title="تأكيد" onclick="setBookingStatus('${b.id}','confirmed')">✅</button>` : ''}
+        ${b.status !== 'cancelled' ? `<button class="icon-btn del-btn" title="إلغاء" onclick="setBookingStatus('${b.id}','cancelled')">❌</button>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+function bookingStatusLabel(s) {
+  if (s === 'confirmed') return '<span style="color:#2e8b57;">مؤكدة ✅</span>';
+  if (s === 'cancelled') return '<span style="color:var(--danger);">ملغاة ❌</span>';
+  return '<span style="color:var(--gold-dark);">بانتظار التأكيد ⏳</span>';
+}
+
+async function setBookingStatus(id, status) {
+  const { error } = await sb.from('bookings').update({ status }).eq('id', id);
+  if (error) { await uiAlert('تعذر التحديث: ' + error.message); return; }
+  loadBookingsAdmin();
 }
 
 ['filterSubject','filterLevel','filterBranch','filterCity','filterArea','filterStatus'].forEach(id => {

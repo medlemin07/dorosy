@@ -350,6 +350,18 @@
 
   <div id="printArea" style="display:none;"></div>
 
+  <div id="ratingModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:1000;align-items:center;justify-content:center;padding:20px;">
+    <div class="card-block" style="max-width:340px;width:100%;margin-bottom:0;">
+      <div class="form-title" id="ratingModalTitle">تقييم الأستاذ</div>
+      <div class="form-sub">شاركنا تجربتك لمساعدة طلاب آخرين.</div>
+      <div id="ratingStars" style="font-size:34px;text-align:center;letter-spacing:6px;margin:10px 0;cursor:pointer;">☆☆☆☆☆</div>
+      <textarea id="ratingComment" placeholder="تعليق (اختياري)" style="width:100%;padding:10px;border:1px solid var(--rule);border-radius:2px;min-height:60px;font-family:'Tajawal',sans-serif;font-size:14px;"></textarea>
+      <button class="btn full" style="margin-top:12px;" onclick="submitRating()">إرسال التقييم</button>
+      <button class="btn outline full" style="margin-top:8px;" onclick="closeRatingModal()">إلغاء</button>
+      <div class="msg" id="ratingMsg"></div>
+    </div>
+  </div>
+
   <div id="uiModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;padding:20px;">
     <div style="background:var(--paper-light);border-radius:12px;padding:22px;max-width:340px;width:100%;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,0.3);">
       <div id="uiModalText" style="margin-bottom:16px;font-size:14px;color:var(--text);white-space:pre-line;"></div>
@@ -476,6 +488,12 @@
     </div>
 
     <div class="card-block">
+      <div class="form-title">تقييمات الأساتذة</div>
+      <div class="form-sub">احذف أي تقييم غير لائق أو مسيء.</div>
+      <div id="ratingsAdminList"></div>
+    </div>
+
+    <div class="card-block">
       <div class="form-title">طلبات اشتراك الدروس المسجلة</div>
       <div class="form-sub">وافق على الطالب فقط بعد تأكيد الدفع يدويًا عبر واتساب.</div>
       <div id="studentRequestsList"></div>
@@ -518,9 +536,6 @@
 
 <footer>
   منصة دروسي — مبادرة مجتمعية لتنظيم الدروس الخصوصية في موريتانيا 🇲🇷
-  <div style="margin-top:10px;">
-    <button id="starLogin" onclick="switchView('login')" style="background:none;border:none;color:var(--rule);font-size:16px;cursor:pointer;opacity:0.5;" title="دخول المشرف">⭐</button>
-  </div>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -528,6 +543,7 @@
 const SUPABASE_URL = "https://ooyyxxlfbiswkeedptwp.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_LiYs_p3BSIX0z_GvNTUKzw_XdgVrVUc";
 const ADMIN_EMAIL = "medleminsidatywww@gmail.com";
+const ADMIN_SECRET_HASH = "#dorosy-panel-2026";
 const LEVELS = [
   "شهادة ختم الدروس الابتدائية",
   "شهادة ختم الدروس الإعدادية",
@@ -609,6 +625,7 @@ let isAdmin = false;
 let editingTeacherId = null;
 let removePhotoFlag = false;
 let allTeachers = [];
+let ratingsByTeacher = {};
 let allSubjects = [];
 let allCities = [];
 let allAreas = [];
@@ -842,6 +859,9 @@ function render(data) {
       ? `<img class="avatar" src="${t.photo_url}" alt="${escapeHtml(t.name)}">`
       : `<div class="avatar">${escapeHtml((t.name || '؟').charAt(0))}</div>`;
     const inactive = t.is_active === false;
+    const ratingHtml = (t.rating_count && t.rating_count > 0)
+      ? `<span title="${t.rating_count} تقييم">${starsDisplay(t.avg_rating)} <span class="num" style="font-size:11px;color:var(--muted);">(${t.rating_count})</span></span>`
+      : '';
     // لا تعتيم — الحالة تظهر عبر ختم الحالة الملوّن فقط
 
     row.innerHTML = `
@@ -857,10 +877,12 @@ function render(data) {
           ${tLevels.length ? `<span>${escapeHtml(tLevels.join('، '))}${tBranches.length ? ' (' + escapeHtml(tBranches.join('، ')) + ')' : ''}</span>` : ''}
           ${t.city ? `<span>📍 ${escapeHtml(t.city)}${t.area ? ' - ' + escapeHtml(t.area) : ''}</span>` : ''}
         </div>
+        ${ratingHtml ? `<div style="margin-top:4px;">${ratingHtml}</div>` : ''}
         ${t.bio ? `<div class="row-bio">${escapeHtml(t.bio)}</div>` : ''}
       </div>
       <div class="row-actions">
         ${wa ? `<a class="icon-btn wa-link" href="${waHref}" target="_blank" title="واتساب">${WA_ICON}</a>` : ''}
+        <button class="icon-btn outline" style="background:var(--gold);color:white;" title="قيّم الأستاذ" onclick="openRatingModal('${t.id}', '${escapeHtml(t.name).replace(/'/g, "\\'")}')">⭐</button>
         ${isAdmin ? `<button class="icon-btn outline" style="background:${inactive ? 'var(--ink)' : 'var(--muted)'};color:white;" title="${inactive ? 'تفعيل' : 'إيقاف'}" onclick="toggleTeacherStatus('${t.id}', ${inactive})">${inactive ? '▶️' : '⏸️'}</button>` : ''}
         ${isAdmin ? `<button class="icon-btn outline" style="background:var(--gold-dark);color:white;" title="تعديل" onclick="editTeacher('${t.id}')">✏️</button>` : ''}
         ${isAdmin ? `<button class="icon-btn del-btn" title="حذف" onclick="deleteTeacher('${t.id}')">🗑️</button>` : ''}
@@ -908,21 +930,20 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
 function onAdminLogin() {
   isAdmin = true;
   document.getElementById('tabAdmin').style.display = 'inline-block';
-  document.getElementById('starLogin').style.display = 'none';
   switchView('admin');
   render(allTeachers.filter(t => matchesCurrentFilters(t)));
   applyFilters();
   loadStudentRequests();
   loadRecordedLessonsAdmin();
+  loadRatingsAdmin();
 }
 
 async function adminLogout() {
   await sb.auth.signOut();
   isAdmin = false;
   document.getElementById('tabAdmin').style.display = 'none';
-  document.getElementById('starLogin').style.display = 'inline-block';
   document.getElementById('loginForm').reset();
-  switchView('list');
+  switchView(window.location.hash === ADMIN_SECRET_HASH ? 'login' : 'list');
   applyFilters();
 }
 
@@ -1457,6 +1478,123 @@ async function deleteRecordedLesson(id) {
   loadRecordedLessonsAdmin();
 }
 
+// ===================== تقييم الأساتذة =====================
+let currentRatingTeacherId = null;
+let currentRatingValue = 0;
+
+async function loadRatings() {
+  const { data, error } = await sb.from('public_teacher_ratings').select('teacher_id, rating');
+  if (error) { console.error(error); return; }
+  const map = {};
+  (data || []).forEach(r => {
+    if (!map[r.teacher_id]) map[r.teacher_id] = { sum: 0, count: 0 };
+    map[r.teacher_id].sum += r.rating;
+    map[r.teacher_id].count += 1;
+  });
+  ratingsByTeacher = {};
+  Object.keys(map).forEach(id => {
+    ratingsByTeacher[id] = { avg: map[id].sum / map[id].count, count: map[id].count };
+  });
+}
+
+function starsDisplay(avg) {
+  const rounded = Math.round(avg);
+  return '⭐'.repeat(rounded) + '☆'.repeat(5 - rounded);
+}
+
+function openRatingModal(teacherId, teacherName) {
+  currentRatingTeacherId = teacherId;
+  currentRatingValue = 0;
+  document.getElementById('ratingModalTitle').textContent = `تقييم ${teacherName}`;
+  document.getElementById('ratingComment').value = '';
+  document.getElementById('ratingMsg').className = 'msg';
+  renderRatingStars();
+
+  const alreadyRated = localStorage.getItem('rated_' + teacherId);
+  if (alreadyRated) {
+    document.getElementById('ratingMsg').className = 'msg error';
+    document.getElementById('ratingMsg').textContent = 'قيّمت هذا الأستاذ من قبل من هذا الجهاز.';
+  }
+
+  document.getElementById('ratingModalOverlay').style.display = 'flex';
+}
+
+function closeRatingModal() {
+  document.getElementById('ratingModalOverlay').style.display = 'none';
+}
+
+function renderRatingStars() {
+  const el = document.getElementById('ratingStars');
+  el.innerHTML = '';
+  for (let i = 1; i <= 5; i++) {
+    const star = document.createElement('span');
+    star.textContent = i <= currentRatingValue ? '★' : '☆';
+    star.style.color = i <= currentRatingValue ? 'var(--gold)' : 'var(--rule)';
+    star.onclick = () => { currentRatingValue = i; renderRatingStars(); };
+    el.appendChild(star);
+  }
+}
+
+async function submitRating() {
+  const msg = document.getElementById('ratingMsg');
+  msg.className = 'msg';
+
+  if (localStorage.getItem('rated_' + currentRatingTeacherId)) {
+    msg.className = 'msg error';
+    msg.textContent = 'قيّمت هذا الأستاذ من قبل من هذا الجهاز.';
+    return;
+  }
+  if (currentRatingValue < 1) {
+    msg.className = 'msg error';
+    msg.textContent = 'اختر عدد النجوم أولًا.';
+    return;
+  }
+
+  const comment = document.getElementById('ratingComment').value.trim();
+  const { error } = await sb.from('teacher_ratings').insert([{
+    teacher_id: currentRatingTeacherId, rating: currentRatingValue, comment
+  }]);
+
+  if (error) {
+    msg.className = 'msg error';
+    msg.textContent = 'تعذر إرسال التقييم: ' + error.message;
+    return;
+  }
+
+  localStorage.setItem('rated_' + currentRatingTeacherId, '1');
+  msg.className = 'msg success';
+  msg.textContent = 'شكرًا لتقييمك!';
+  await loadRatings();
+  applyFilters();
+  setTimeout(closeRatingModal, 900);
+}
+
+async function loadRatingsAdmin() {
+  const el = document.getElementById('ratingsAdminList');
+  if (!el) return;
+  const { data, error } = await sb.from('teacher_ratings').select('*, teachers(name)').order('created_at', { ascending: false }).limit(50);
+  if (error) { el.innerHTML = 'تعذر التحميل: ' + error.message; return; }
+  if (!data.length) { el.innerHTML = '<span style="color:var(--muted);font-size:13px;">لا يوجد تقييمات بعد</span>'; return; }
+  el.innerHTML = data.map(r => `
+    <div class="row" style="padding:10px 4px;">
+      <div class="row-main" style="font-size:13px;">
+        <strong>${escapeHtml(r.teachers ? r.teachers.name : '')}</strong> — ${starsDisplay(r.rating)}
+        ${r.comment ? `<div class="row-bio">${escapeHtml(r.comment)}</div>` : ''}
+      </div>
+      <button class="icon-btn del-btn" title="حذف" onclick="deleteRating('${r.id}')">🗑️</button>
+    </div>
+  `).join('');
+}
+
+async function deleteRating(id) {
+  if (!await uiConfirm('حذف هذا التقييم؟')) return;
+  const { error } = await sb.from('teacher_ratings').delete().eq('id', id);
+  if (error) { await uiAlert('تعذر الحذف: ' + error.message); return; }
+  loadRatingsAdmin();
+  loadRatings();
+  applyFilters();
+}
+
 ['filterSubject','filterLevel','filterBranch','filterCity','filterArea','filterStatus'].forEach(id => {
   const el = document.getElementById(id);
   if (el) el.value = '';
@@ -1465,6 +1603,10 @@ async function deleteRecordedLesson(id) {
 checkExistingSession();
 loadAll();
 loadTimePlan();
+
+if (window.location.hash === ADMIN_SECRET_HASH && !isAdmin) {
+  switchView('login');
+}
 </script>
 
 </body>
